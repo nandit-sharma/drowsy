@@ -13,7 +13,9 @@ def predict_eye_state(eye_img):
 
     prediction = model.predict(reshaped, verbose=0)[0]
 
-    # DEBUG PRINT
-    # print("Prediction:", prediction)
+    # prediction[0] = OPEN probability
+    # prediction[1] = CLOSED probability
+    open_prob = prediction[0]
+    close_prob = prediction[1]
 
-    return np.argmax(prediction)
+    return open_prob, close_prob
