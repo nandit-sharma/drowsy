@@ -1,7 +1,9 @@
+
+
 import cv2
 import mediapipe as mp
 import time
-from utils import calculate_ear
+from predict import predict_eye_state
 from alarm import start_alarm, stop_alarm
 
 mp_face_mesh = mp.solutions.face_mesh
@@ -11,22 +13,48 @@ face_mesh = mp_face_mesh.FaceMesh(
     refine_landmarks=True
 )
 
-LEFT_EYE = [33, 160, 158, 133, 153, 144]
-RIGHT_EYE = [362, 385, 387, 263, 373, 380]
+LEFT_EYE_POINTS = [33, 160, 158, 133, 153, 144]
+RIGHT_EYE_POINTS = [362, 385, 387, 263, 373, 380]
 
-EAR_THRESHOLD = 0.25
-CLOSED_FRAMES_LIMIT = 30
-
+# Drowsiness settings
+CLOSED_FRAMES_LIMIT = 20
 closed_frames = 0
 
-# Alarm system variables
-alarm_started = False
-drowsy_start_time = None
-alarm_delay = 5  # seconds
+# Missing person settings
+MISSING_FRAMES_LIMIT = 30   # ~1 second if 30 FPS
+missing_frames = 0
 
+# Alarm settings
+alarm_started = False
+alarm_delay = 5  # seconds
 sound_path = "assets/alarm.wav"
 
+# Separate timers (IMPORTANT FIX)
+drowsy_trigger_time = None
+missing_trigger_time = None
+
 cap = cv2.VideoCapture(0)
+
+
+def crop_eye(frame, eye_points):
+    h, w, _ = frame.shape
+    coords = [(int(p.x * w), int(p.y * h)) for p in eye_points]
+
+    x_coords = [c[0] for c in coords]
+    y_coords = [c[1] for c in coords]
+
+    x_min, x_max = min(x_coords), max(x_coords)
+    y_min, y_max = min(y_coords), max(y_coords)
+
+    padding = 25
+    x_min = max(0, x_min - padding)
+    x_max = min(w, x_max + padding)
+    y_min = max(0, y_min - padding)
+    y_max = min(h, y_max + padding)
+
+    eye_crop = frame[y_min:y_max, x_min:x_max]
+    return eye_crop, (x_min, y_min, x_max, y_max)
+
 
 while True:
     ret, frame = cap.read()
@@ -34,86 +62,130 @@ while True:
         break
 
     frame = cv2.flip(frame, 1)
-    h, w, _ = frame.shape
 
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     result = face_mesh.process(rgb)
 
     key = cv2.waitKey(1) & 0xFF
 
-    eyes_closed = False
+    face_detected = False
 
+    # -------------------- FACE/EYE DETECTION --------------------
     if result.multi_face_landmarks:
+        face_detected = True
+        missing_frames = 0
+        missing_trigger_time = None  # reset missing timer if face returns
+
         for face_landmarks in result.multi_face_landmarks:
+            landmarks = face_landmarks.landmark
 
-            left_eye_points = []
-            right_eye_points = []
+            left_eye_lms = [landmarks[i] for i in LEFT_EYE_POINTS]
+            right_eye_lms = [landmarks[i] for i in RIGHT_EYE_POINTS]
 
-            for idx in LEFT_EYE:
-                lm = face_landmarks.landmark[idx]
-                x, y = int(lm.x * w), int(lm.y * h)
-                left_eye_points.append((x, y))
-                cv2.circle(frame, (x, y), 2, (0, 255, 0), -1)
+            left_eye_img, left_box = crop_eye(frame, left_eye_lms)
+            right_eye_img, right_box = crop_eye(frame, right_eye_lms)
 
-            for idx in RIGHT_EYE:
-                lm = face_landmarks.landmark[idx]
-                x, y = int(lm.x * w), int(lm.y * h)
-                right_eye_points.append((x, y))
-                cv2.circle(frame, (x, y), 2, (0, 255, 0), -1)
+            if left_eye_img.size == 0 or right_eye_img.size == 0:
+                continue
 
-            left_ear = calculate_ear(left_eye_points)
-            right_ear = calculate_ear(right_eye_points)
-            ear = (left_ear + right_ear) / 2.0
+            left_state = predict_eye_state(left_eye_img)
+            right_state = predict_eye_state(right_eye_img)
 
-            cv2.putText(frame, f"EAR: {ear:.2f}", (30, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
+            # Model behavior:
+            # 0 = OPEN
+            # 1 = CLOSED
+            left_status = "OPEN" if left_state == 0 else "CLOSED"
+            right_status = "OPEN" if right_state == 0 else "CLOSED"
 
-            # Detect eye closed
-            if ear < EAR_THRESHOLD:
+            # Draw eye rectangles
+            cv2.rectangle(frame, (left_box[0], left_box[1]), (left_box[2], left_box[3]), (0, 255, 0), 2)
+            cv2.rectangle(frame, (right_box[0], right_box[1]), (right_box[2], right_box[3]), (0, 255, 0), 2)
+
+            cv2.putText(frame, f"Left: {left_status}", (30, 50),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
+
+            cv2.putText(frame, f"Right: {right_status}", (30, 80),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
+
+
+            # -------------------- DROWSINESS LOGIC --------------------
+
+            # If BOTH eyes are closed
+            if left_state == 1 and right_state == 1:
                 closed_frames += 1
-            else:
-                closed_frames = 0
-                eyes_closed = False
 
-                # if eyes open, stop alarm immediately
+            # If ANY eye is open -> reset + stop alarm instantly
+            if left_state == 0 or right_state == 0:
+                closed_frames = 0
+                drowsy_trigger_time = None
+
                 if alarm_started:
                     stop_alarm()
                     alarm_started = False
 
-                drowsy_start_time = None
 
-            # Check if drowsy
+            # Drowsy trigger countdown
             if closed_frames >= CLOSED_FRAMES_LIMIT:
-                eyes_closed = True
-
-                cv2.putText(frame, "DROWSY!", (30, 120),
+                cv2.putText(frame, "DROWSY!", (30, 140),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
 
-                if drowsy_start_time is None:
-                    drowsy_start_time = time.time()
+                if drowsy_trigger_time is None:
+                    drowsy_trigger_time = time.time()
 
-                elapsed = time.time() - drowsy_start_time
+                elapsed = time.time() - drowsy_trigger_time
                 remaining = int(alarm_delay - elapsed)
 
                 if remaining > 0:
-                    cv2.putText(frame, f"Alarm in {remaining}s (Press S to stop)", (30, 180),
+                    cv2.putText(frame, f"Alarm in {remaining}s (Press S to stop)", (30, 200),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
                 else:
                     if not alarm_started:
                         start_alarm(sound_path)
                         alarm_started = True
             else:
-                cv2.putText(frame, "AWAKE", (30, 120),
+                cv2.putText(frame, "AWAKE", (30, 140),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 3)
 
-    # Manual cancel with S
-    if key == ord("s"):
-        drowsy_start_time = None
+    # -------------------- PERSON MISSING LOGIC --------------------
+    if not face_detected:
+        missing_frames += 1
         closed_frames = 0
+        drowsy_trigger_time = None  # reset drowsy timer
+
+        cv2.putText(frame, "NO PERSON DETECTED!", (30, 140),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+
+        if missing_frames >= MISSING_FRAMES_LIMIT:
+            if missing_trigger_time is None:
+                missing_trigger_time = time.time()
+
+            elapsed = time.time() - missing_trigger_time
+            remaining = int(alarm_delay - elapsed)
+
+            if remaining > 0:
+                cv2.putText(frame, f"Alarm in {remaining}s (Press S to stop)", (30, 200),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+            else:
+                if not alarm_started:
+                    start_alarm(sound_path)
+                    alarm_started = True
+
+    # Stop alarm only if it was started due to missing person
+    if face_detected and alarm_started and missing_trigger_time is not None:
+        stop_alarm()
+        alarm_started = False
+        missing_trigger_time = None
+
+    # Press S cancels everything
+    if key == ord("s"):
+        closed_frames = 0
+        missing_frames = 0
+        drowsy_trigger_time = None
+        missing_trigger_time = None
         stop_alarm()
         alarm_started = False
 
-    cv2.imshow("Drowsiness Detection", frame)
+    cv2.imshow("Deep Learning Drowsiness Detection", frame)
 
     if key == ord("q"):
         stop_alarm()
