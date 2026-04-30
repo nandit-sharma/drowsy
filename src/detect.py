@@ -164,7 +164,14 @@ while True:
 
     # ---------------- PUSH DATA TO API ----------------
     try:
-        requests.post(f"{API_URL}/update", json={"ear": ear_to_send, "status": status_to_send})
+        r = requests.post(f"{API_URL}/update", json={"ear": ear_to_send, "status": status_to_send})
+        res_data = r.json()
+        if res_data.get("stop_alarm"):
+            if alarm_started or face_alarm_started:
+                stop_alarm()
+                stop_recording("MANUAL_STOP")
+                alarm_started = False
+                face_alarm_started = False
     except: pass
 
     # ---------------- PUSH FRAME TO API (NOW AT THE END) ----------------

@@ -19,7 +19,7 @@ export default function Home() {
     fetch('http://127.0.0.1:8000/detection/status')
       .then(r => r.json())
       .then(d => setIsRunning(d.running))
-      .catch(() => {});
+      .catch(() => { });
 
     const connect = () => {
       ws.current = new WebSocket('ws://127.0.0.1:8000/ws');
@@ -55,6 +55,15 @@ export default function Home() {
       }
     } finally { setLoading(false); }
   };
+  const handleStopAlarm = async () => {
+    try {
+      await fetch("http://127.0.0.1:8000/beep/stop", {
+        method: "POST",
+      });
+    } catch (err) {
+      console.log("Failed to stop alarm", err);
+    }
+  };
 
   const status = isRunning ? data.status : 'IDLE';
   const isAlert = status === 'DROWSY' || status === 'MISSING';
@@ -88,6 +97,11 @@ export default function Home() {
               {loading ? 'Stopping…' : 'Stop Detection'}
             </button>
           )}
+          <button className="btn btn-danger" onClick={handleStopAlarm}>
+            <Square size={16} fill="currentColor" />
+            Stop Alarm
+          </button>
+
         </div>
       </div>
 

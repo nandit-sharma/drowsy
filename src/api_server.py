@@ -94,14 +94,19 @@ def get_detection_status():
 
 @app.post("/update")
 async def update_data(data: dict):
-    global latest_data
+    global latest_data, force_stop_alarm
     latest_data = data
     for client in clients:
         try:
             await client.send_json(data)
         except:
-            pass
-    return {"status": "ok"}
+            clients.remove(client)
+    
+    resp = {"status": "success"}
+    if force_stop_alarm:
+        resp["stop_alarm"] = True
+        force_stop_alarm = False
+    return resp
 
 
 @app.post("/frame")
@@ -123,6 +128,8 @@ async def video_feed():
     return StreamingResponse(generate(), media_type="multipart/x-mixed-replace; boundary=frame")
 
 
+force_stop_alarm = False
+
 @app.post("/beep/start")
 def beep_start(data: dict):
     global current_reason, recorder
@@ -135,7 +142,8 @@ def beep_start(data: dict):
 
 @app.post("/beep/stop")
 def beep_stop():
-    global current_reason, recorder
+    global current_reason, recorder, force_stop_alarm
+    force_stop_alarm = True
     filename, start_time, end_time = recorder.stop()
     reason = current_reason or "unknown"
     save_recording(filename, start_time, end_time, reason)
