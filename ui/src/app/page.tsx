@@ -12,56 +12,77 @@ export default function Home() {
   const [earHistory, setEarHistory] = useState<EarPoint[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const [apiUrl, setApiUrl] = useState('http://127.0.0.1:8001');
+  const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8001');
+
   const ws = useRef<WebSocket | null>(null);
 
-  // Check current status on mount
+  // Fix hydration mismatch by setting URLs only after client mounts
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/detection/status')
-      .then(r => r.json())
-      .then(d => setIsRunning(d.running))
+    const host = window.location.hostname;
+    setApiUrl(`http://${host}:8001`);
+    setWsUrl(`ws://${host}:8001`);
+  }, []);
+
+  // Check current status + connect websocket
+  useEffect(() => {
+    fetch(`${apiUrl}/detection/status`)
+      .then((r) => r.json())
+      .then((d) => setIsRunning(d.running))
       .catch(() => { });
 
     const connect = () => {
-      ws.current = new WebSocket('ws://127.0.0.1:8000/ws');
+      ws.current = new WebSocket(`${wsUrl}/ws`);
+
       ws.current.onmessage = (e) => {
         const payload: DetectionData = JSON.parse(e.data);
         setData(payload);
-        setEarHistory(prev => [...prev.slice(-50), { t: Date.now(), ear: payload.ear }]);
+        setEarHistory((prev) => [...prev.slice(-50), { t: Date.now(), ear: payload.ear }]);
       };
+
       ws.current.onclose = () => setTimeout(connect, 3000);
     };
+
     connect();
+
     return () => ws.current?.close();
-  }, []);
+  }, [apiUrl, wsUrl]);
 
   const handleStart = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://127.0.0.1:8000/detection/start', { method: 'POST' });
+      const res = await fetch(`${apiUrl}/detection/start`, { method: 'POST' });
       const result = await res.json();
       if (result.status === 'started' || result.status === 'already_running') setIsRunning(true);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleStop = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://127.0.0.1:8000/detection/stop', { method: 'POST' });
+      const res = await fetch(`${apiUrl}/detection/stop`, { method: 'POST' });
       const result = await res.json();
+
       if (result.status === 'stopped') {
         setIsRunning(false);
         setData({ ear: 0, status: 'IDLE' });
         setEarHistory([]);
       }
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
+
   const handleStopAlarm = async () => {
     try {
-      await fetch("http://127.0.0.1:8000/beep/stop", {
-        method: "POST",
+      await fetch(`${apiUrl}/beep/stop`, {
+        method: 'POST',
       });
     } catch (err) {
-      console.log("Failed to stop alarm", err);
+      console.log('Failed to stop alarm', err);
     }
   };
 
@@ -80,6 +101,7 @@ export default function Home() {
           <div className="page-title">Live Monitor</div>
           <div className="page-subtitle">Real-time eye tracking and drowsiness analysis</div>
         </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div className={`status-display ${statusClass}`}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'currentColor', display: 'inline-block' }}></span>
@@ -97,11 +119,11 @@ export default function Home() {
               {loading ? 'Stopping…' : 'Stop Detection'}
             </button>
           )}
+
           <button className="btn btn-danger" onClick={handleStopAlarm}>
             <Square size={16} fill="currentColor" />
             Stop Alarm
           </button>
-
         </div>
       </div>
 
@@ -120,13 +142,17 @@ export default function Home() {
                   </span>
                 )}
               </div>
+
               <div className="feed-wrapper">
                 <img
-                  src="http://127.0.0.1:8000/video_feed"
+                  src={`${apiUrl}/video_feed`}
                   alt="Live Feed"
                   className="feed-img"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
                 />
+
                 {!isRunning && (
                   <div className="feed-overlay">
                     <Power size={52} color="var(--text-muted)" strokeWidth={1} />
@@ -134,6 +160,7 @@ export default function Home() {
                       <div style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 15 }}>Detection Offline</div>
                       <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>Press "Start Detection" to begin</div>
                     </div>
+
                     <button className="btn btn-violet" onClick={handleStart} disabled={loading}>
                       <Play size={16} fill="currentColor" />
                       {loading ? 'Starting…' : 'Start Detection'}
@@ -151,6 +178,7 @@ export default function Home() {
                   {(data.ear || 0).toFixed(3)}
                 </span>
               </div>
+
               <div className="card-body" style={{ padding: '16px 20px' }}>
                 <div style={{ height: 120 }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -167,6 +195,7 @@ export default function Home() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
                   <span>0.00 (closed)</span>
                   <span style={{ color: 'var(--red)' }}>— threshold 0.25</span>
@@ -201,7 +230,9 @@ export default function Home() {
               <div className="stat-value" style={{ fontSize: 28, color: isAlert ? 'var(--red)' : isAwake ? 'var(--emerald)' : 'var(--text-muted)' }}>
                 {isAlert ? '⚠ ALERT' : isAwake ? '✓ NORMAL' : '— IDLE'}
               </div>
-              <div className="stat-label">{isAlert ? 'Drowsiness detected!' : isAwake ? 'Driver is alert and safe' : 'Start detection to monitor'}</div>
+              <div className="stat-label">
+                {isAlert ? 'Drowsiness detected!' : isAwake ? 'Driver is alert and safe' : 'Start detection to monitor'}
+              </div>
             </div>
 
             {/* System Metrics */}
@@ -216,18 +247,21 @@ export default function Home() {
                     {isRunning ? 'Running' : 'Stopped'}
                   </span>
                 </div>
+
                 <div className="metric-row" style={{ padding: '12px 20px' }}>
                   <span className="metric-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Eye size={13} /> EAR Threshold
                   </span>
                   <span className="metric-value">0.25</span>
                 </div>
+
                 <div className="metric-row" style={{ padding: '12px 20px' }}>
                   <span className="metric-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Cpu size={13} /> MediaPipe
                   </span>
                   <span className="metric-value" style={{ color: 'var(--violet-light)' }}>Active</span>
                 </div>
+
                 <div className="metric-row" style={{ padding: '12px 20px' }}>
                   <span className="metric-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Wifi size={13} /> WebSocket

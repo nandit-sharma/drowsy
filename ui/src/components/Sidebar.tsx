@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -12,17 +12,23 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-  { href: '/',            label: 'Live Monitor',  icon: LayoutDashboard, section: 'main' },
-  { href: '/recordings',  label: 'Recordings',    icon: Video,           section: 'main' },
-  { href: '/logs',        label: 'System Logs',   icon: ScrollText,      section: 'main' },
-  { href: '/settings',    label: 'Settings',      icon: Settings,        section: 'system' },
+  { href: '/',           label: 'Live Monitor', icon: LayoutDashboard, section: 'main' },
+  { href: '/recordings', label: 'Recordings',   icon: Video,           section: 'main' },
+  { href: '/logs',       label: 'System Logs',  icon: ScrollText,      section: 'main' },
+  { href: '/settings',   label: 'Settings',     icon: Settings,        section: 'system' },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
 
-  const mainItems   = navItems.filter(n => n.section === 'main');
-  const systemItems = navItems.filter(n => n.section === 'system');
+  const [host, setHost] = useState('127.0.0.1');
+
+  useEffect(() => {
+    setHost(window.location.hostname);
+  }, []);
+
+  const mainItems = navItems.filter((n) => n.section === 'main');
+  const systemItems = navItems.filter((n) => n.section === 'system');
 
   return (
     <aside className="sidebar">
@@ -44,8 +50,13 @@ export default function Sidebar() {
           {mainItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
+
             return (
-              <Link key={item.href} href={item.href} className={`nav-item${isActive ? ' active' : ''}`}>
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`nav-item${isActive ? ' active' : ''}`}
+              >
                 <Icon className="nav-item-icon" size={18} />
                 <span>{item.label}</span>
               </Link>
@@ -53,13 +64,21 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="sidebar-section-label" style={{ marginTop: 24 }}>System</div>
+        <div className="sidebar-section-label" style={{ marginTop: 24 }}>
+          System
+        </div>
+
         <nav className="sidebar-nav">
           {systemItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
+
             return (
-              <Link key={item.href} href={item.href} className={`nav-item${isActive ? ' active' : ''}`}>
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`nav-item${isActive ? ' active' : ''}`}
+              >
                 <Icon className="nav-item-icon" size={18} />
                 <span>{item.label}</span>
               </Link>
@@ -73,8 +92,13 @@ export default function Sidebar() {
         <div className="status-pill">
           <div className="status-dot" id="server-dot"></div>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>API Server</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>127.0.0.1:8000</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+              API Server
+            </div>
+
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+              {host}:8001
+            </div>
           </div>
         </div>
       </div>

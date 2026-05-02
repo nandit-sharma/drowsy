@@ -1,3 +1,7 @@
+# Hello vandit how are you. I have made some changes to the code. Please review it and let me know if you have any questions or need further modifications.
+
+
+
 import cv2
 import mediapipe as mp
 import time
@@ -12,7 +16,7 @@ from recorder import Recorder
 from database import log_event, save_recording
 
 # ---------------- API ----------------
-API_URL = "http://127.0.0.1:8000"
+API_URL = "http://127.0.0.1:8001"
 
 # ---------------- MEDIAPIPE ----------------
 mp_face_mesh = mp.solutions.face_mesh
@@ -43,7 +47,7 @@ drowsy_sound_path = "assets/drowsy_alarm.wav"
 face_missing_sound_path = "assets/face_missing_alarm.wav"
 
 # ---------------- SETTINGS ----------------
-alarm_delay = 5  # seconds
+alarm_delay = 2  # seconds
 
 # ---------------- CAMERA & RECORDER ----------------
 cap = cv2.VideoCapture(0)

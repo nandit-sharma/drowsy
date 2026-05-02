@@ -13,7 +13,8 @@ export default function LogsPage() {
   const [logs, setLogs] = useState<LogEvent[]>([]);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/events')
+    const API_URL = typeof window !== 'undefined' ? `http://${window.location.hostname}:8001` : 'http://127.0.0.1:8001';
+    fetch(`${API_URL}/events`)
       .then(res => res.json())
       .then(setLogs)
       .catch(err => console.error('Failed to fetch logs:', err));

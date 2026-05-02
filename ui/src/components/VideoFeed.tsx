@@ -3,10 +3,11 @@
 import React from 'react';
 
 export default function VideoFeed() {
+  const API_URL = typeof window !== 'undefined' ? `http://${window.location.hostname}:8001` : 'http://127.0.0.1:8001';
   return (
     <div className="w-full h-full bg-black flex items-center justify-center">
       <img 
-        src="http://127.0.0.1:8000/video_feed" 
+        src={`${API_URL}/video_feed`}
         alt="System Feed" 
         className="video-element"
         onError={(e) => {

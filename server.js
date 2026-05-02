@@ -6,15 +6,15 @@ console.log('👉 Dashboard: http://localhost:3000');
 console.log('👉 System is running in background mode.');
 
 // 1. Start FastAPI Backend (Silenced)
-const fastapi = spawn('python', ['-m', 'uvicorn', 'src.api_server:app', '--host', '127.0.0.1', '--port', '8000', '--log-level', 'warning'], {
-  stdio: 'ignore', // Completely silence output
+const fastapi = spawn('python', ['-m', 'uvicorn', 'src.api_server:app', '--host', '127.0.0.1', '--port', '8001', '--log-level', 'warning'], {
+  stdio: 'inherit', // Completely silence output
   shell: true
 });
 
 // 2. Start Next.js Frontend (Silenced)
 const nextjs = spawn('npm', ['run', 'dev'], {
   cwd: path.join(__dirname, 'ui'),
-  stdio: 'ignore', // Completely silence output
+  stdio: 'inherit', // Completely silence output
   shell: true
 });
 

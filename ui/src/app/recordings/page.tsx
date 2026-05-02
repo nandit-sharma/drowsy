@@ -14,7 +14,8 @@ export default function RecordingsPage() {
   const [recordings, setRecordings] = useState<Recording[]>([]);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/recordings')
+    const API_URL = typeof window !== 'undefined' ? `http://${window.location.hostname}:8001` : 'http://127.0.0.1:8001';
+    fetch(`${API_URL}/recordings`)
       .then(res => res.json())
       .then(setRecordings)
       .catch(err => console.error('Failed to fetch recordings:', err));
