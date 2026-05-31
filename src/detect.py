@@ -31,11 +31,12 @@ LEFT_EYE = [33, 160, 158, 133, 153, 144]
 RIGHT_EYE = [362, 385, 387, 263, 373, 380]
 
 # ---------------- THRESHOLDS ----------------
-EAR_THRESHOLD = 0.25
+EAR_THRESHOLD = 0.19
 CLOSED_FRAMES_LIMIT = 10
 
 # ---------------- STATES ----------------
 closed_frames = 0
+open_frames = 0
 drowsy_start_time = None
 alarm_started = False
 face_missing_start_time = None
@@ -47,7 +48,7 @@ drowsy_sound_path = "assets/drowsy_alarm.wav"
 face_missing_sound_path = "assets/face_missing_alarm.wav"
 
 # ---------------- SETTINGS ----------------
-alarm_delay = 0.5  # seconds
+alarm_delay = 0.30  # seconds
 
 # ---------------- CAMERA & RECORDER ----------------
 cap = cv2.VideoCapture(0)
@@ -124,13 +125,16 @@ while True:
             # ---------------- DROWSY LOGIC ----------------
             if ear < EAR_THRESHOLD:
                 closed_frames += 1
+                open_frames = 0
             else:
-                closed_frames = 0
-                if alarm_started:
-                    stop_alarm()
-                    stop_recording("DROWSY_ENDED")
-                    alarm_started = False
-                drowsy_start_time = None
+                open_frames += 1
+                if open_frames >= 5:  # Debounce: require 5 consecutive open frames to cancel drowsy state
+                    closed_frames = 0
+                    if alarm_started:
+                        stop_alarm()
+                        stop_recording("DROWSY_ENDED")
+                        alarm_started = False
+                    drowsy_start_time = None
 
             if closed_frames >= CLOSED_FRAMES_LIMIT:
                 status_to_send = "DROWSY"
@@ -168,13 +172,6 @@ while True:
     # ---------------- PUSH DATA TO API ----------------
     try:
         r = session.post(f"{API_URL}/update", json={"ear": ear_to_send, "status": status_to_send}, timeout=1)
-        res_data = r.json()
-        if res_data.get("stop_alarm"):
-            if alarm_started or face_alarm_started:
-                stop_alarm()
-                stop_recording("MANUAL_STOP")
-                alarm_started = False
-                face_alarm_started = False
     except: pass
 
     # ---------------- PUSH FRAME TO API (NOW AT THE END) ----------------

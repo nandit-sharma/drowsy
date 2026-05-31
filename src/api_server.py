@@ -91,8 +91,8 @@ def start_detection():
 def stop_detection():
     global detection_process
     if detection_process and detection_process.poll() is None:
-        # Use taskkill on Windows to ensure the whole process tree is killed
-        subprocess.run(['taskkill', '/F', '/T', '/PID', str(detection_process.pid)], capture_output=True)
+        # Use Popen instead of run to make taskkill non-blocking and eliminate UI lag
+        subprocess.Popen(['taskkill', '/F', '/T', '/PID', str(detection_process.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         detection_process = None
         log_event("SYSTEM", "Detection Stopped via UI")
         return {"status": "stopped"}

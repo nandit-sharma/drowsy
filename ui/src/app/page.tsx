@@ -220,6 +220,35 @@ export default function Home() {
                 {(data.ear || 0).toFixed(2)}
               </div>
               <div className="stat-label">Current EAR reading</div>
+
+              {/* Dynamic Realtime Visualizer */}
+              <div style={{ display: 'flex', justifyContent: 'center', margin: '24px 0 16px' }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '10px',
+                  animation: 'spin 8s linear infinite',
+                }}>
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => {
+                    const isActive = earPercent > (i * 10);
+                    const scale = isActive ? 1 + (data.ear || 0) * 2 : 0.5;
+                    const isCenter = i === 4;
+                    return (
+                      <div key={i} style={{
+                        width: isCenter ? 16 : 12,
+                        height: isCenter ? 16 : 12,
+                        borderRadius: isCenter ? '3px' : '50%',
+                        background: isAlert ? 'var(--red)' : (isActive ? 'var(--violet-light)' : 'var(--violet-dim)'),
+                        opacity: isActive ? 1 : 0.4,
+                        transform: `scale(${scale})`,
+                        transition: 'all 0.1s ease-out',
+                        boxShadow: isActive ? `0 0 15px ${isAlert ? 'var(--red)' : 'var(--violet-light)'}` : 'none'
+                      }} />
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="ear-bar-track">
                 <div className="ear-bar-fill" style={{ width: `${earPercent}%`, background: isAlert ? 'var(--red)' : 'var(--violet)' }}></div>
               </div>
