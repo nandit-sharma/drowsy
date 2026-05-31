@@ -158,12 +158,16 @@ def beep_start(data: dict):
 def beep_stop():
     global current_reason, recorder, force_stop_alarm
     force_stop_alarm = True
-    filename, start_time, end_time = recorder.stop()
-    reason = current_reason or "unknown"
-    save_recording(filename, start_time, end_time, reason)
-    log_event("BEEP_STOP", reason)
+    try:
+        filename, start_time, end_time = recorder.stop()
+        reason = current_reason or "unknown"
+        if filename:
+            save_recording(filename, start_time, end_time, reason)
+        log_event("BEEP_STOP", reason)
+    except Exception:
+        pass
     current_reason = None
-    return {"status": "recording_stopped"}
+    return {"status": "alarm_stopped"}
 
 
 @app.websocket("/ws")

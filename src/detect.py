@@ -32,7 +32,7 @@ RIGHT_EYE = [362, 385, 387, 263, 373, 380]
 
 # ---------------- THRESHOLDS ----------------
 EAR_THRESHOLD = 0.25
-CLOSED_FRAMES_LIMIT = 30
+CLOSED_FRAMES_LIMIT = 10
 
 # ---------------- STATES ----------------
 closed_frames = 0
@@ -47,15 +47,15 @@ drowsy_sound_path = "assets/drowsy_alarm.wav"
 face_missing_sound_path = "assets/face_missing_alarm.wav"
 
 # ---------------- SETTINGS ----------------
-alarm_delay = 2  # seconds
+alarm_delay = 0.5  # seconds
 
 # ---------------- CAMERA & RECORDER ----------------
 cap = cv2.VideoCapture(0)
-# Set Higher Resolution
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
 recorder = Recorder()
+session = requests.Session()  # reuse TCP connection for speed
 
 def start_recording(frame, reason):
     global is_recording
@@ -64,7 +64,7 @@ def start_recording(frame, reason):
         filename, start_time = recorder.start(w, h)
         log_event("RECORDING_START", f"{reason} -> {filename}")
         try:
-            requests.post(f"{API_URL}/beep/start", json={"reason": reason})
+            session.post(f"{API_URL}/beep/start", json={"reason": reason}, timeout=1)
         except: pass
         is_recording = True
 
@@ -75,7 +75,7 @@ def stop_recording(reason):
         save_recording(filename, start_time, end_time, reason)
         log_event("RECORDING_STOP", f"{reason} -> {filename}")
         try:
-            requests.post(f"{API_URL}/beep/stop")
+            session.post(f"{API_URL}/beep/stop", timeout=1)
         except: pass
         is_recording = False
 
@@ -88,7 +88,6 @@ while True:
     h, w, _ = frame.shape
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     result = face_mesh.process(rgb)
-    cv2.waitKey(1)
 
     status_to_send = "AWAKE"
     ear_to_send = 0.0
@@ -168,7 +167,7 @@ while True:
 
     # ---------------- PUSH DATA TO API ----------------
     try:
-        r = requests.post(f"{API_URL}/update", json={"ear": ear_to_send, "status": status_to_send})
+        r = session.post(f"{API_URL}/update", json={"ear": ear_to_send, "status": status_to_send}, timeout=1)
         res_data = r.json()
         if res_data.get("stop_alarm"):
             if alarm_started or face_alarm_started:
@@ -180,9 +179,9 @@ while True:
 
     # ---------------- PUSH FRAME TO API (NOW AT THE END) ----------------
     recorder.write(frame) # Write processed frame to recorder
-    _, buffer = cv2.imencode('.jpg', frame)
+    _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
     try:
-        requests.post(f"{API_URL}/frame", data=buffer.tobytes())
+        session.post(f"{API_URL}/frame", data=buffer.tobytes(), timeout=1)
     except: pass
 
 cap.release()
