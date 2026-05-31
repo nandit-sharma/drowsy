@@ -55,6 +55,9 @@ export default function Home() {
       const res = await fetch(`${apiUrl}/detection/start`, { method: 'POST' });
       const result = await res.json();
       if (result.status === 'started' || result.status === 'already_running') setIsRunning(true);
+    } catch (err) {
+      console.error('Failed to start detection:', err);
+      alert('Could not connect to the backend server. Please make sure the FastAPI server is running on port 8001 (or run node server.js from the root folder).');
     } finally {
       setLoading(false);
     }
@@ -71,6 +74,9 @@ export default function Home() {
         setData({ ear: 0, status: 'IDLE' });
         setEarHistory([]);
       }
+    } catch (err) {
+      console.error('Failed to stop detection:', err);
+      alert('Could not connect to the backend server. Please make sure the FastAPI server is running on port 8001.');
     } finally {
       setLoading(false);
     }

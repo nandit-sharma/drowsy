@@ -7,6 +7,7 @@ import asyncio
 import subprocess
 import signal
 import os
+import sys
 from typing import List
 
 from src.database import DB_PATH, init_db, log_event, save_recording
@@ -42,6 +43,19 @@ def startup():
     init_db()
 
 
+@app.on_event("shutdown")
+def shutdown():
+    global detection_process
+    if detection_process and detection_process.poll() is None:
+        try:
+            if os.name == 'nt':
+                subprocess.run(['taskkill', '/F', '/T', '/PID', str(detection_process.pid)], capture_output=True)
+            else:
+                detection_process.terminate()
+        except:
+            pass
+
+
 @app.get("/events")
 def get_events():
     conn = sqlite3.connect(DB_PATH)
@@ -67,7 +81,7 @@ def start_detection():
     global detection_process
     if detection_process is None or detection_process.poll() is not None:
         # On Windows, we use creationflags to avoid a popup window if needed, but here it's fine
-        detection_process = subprocess.Popen(['python', 'src/detect.py'])
+        detection_process = subprocess.Popen([sys.executable, 'src/detect.py'])
         log_event("SYSTEM", "Detection Started via UI")
         return {"status": "started"}
     return {"status": "already_running"}
